@@ -8,6 +8,7 @@ dependencies = [
     "basyx-python-sdk>=1.0.0",
     "asyncua>=1.1.0",
     "asyncio-mqtt>=0.16.1",
+    "paho-mqtt<2.0",
     "pydantic>=2.6.0",
     "pydantic-settings>=2.2.0",
     "structlog>=24.1.0",

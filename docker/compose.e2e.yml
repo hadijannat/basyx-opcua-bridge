@@ -2,12 +2,22 @@ services:
   mosquitto:
     image: eclipse-mosquitto:2.0
     ports:
-      - "1883:1883"
+      - "${MQTT_HOST_PORT:-1883}:1883"
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
     healthcheck:
-      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "1"]
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok"]
       interval: 5s
       timeout: 3s
       retries: 12
+
+  mqtt-wait:
+    image: eclipse-mosquitto:2.0
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+    command: >
+      sh -c "until mosquitto_pub -h mosquitto -t healthcheck -m ok >/dev/null 2>&1; do sleep 1; done"
 
   sm-repo:
     image: ${SM_REPO_IMAGE:-eclipsebasyx/submodel-repository:2.0.0-SNAPSHOT}
@@ -15,16 +25,12 @@ services:
       - "8081:8080"
     environment:
       SERVER_PORT: 8080
-      BASYX_BACKEND: InMemory
-      BASYX_SMREPO_NAME: sm-repo
-      BASYX_SUBMODELREPOSITORY_FEATURE_MQTT_ENABLED: "true"
-      MQTT_CLIENTID: sm-repo-e2e
-      MQTT_HOSTNAME: mosquitto
-      MQTT_PORT: 1883
+    volumes:
+      - ./basyx/submodel-repo.properties:/application/application.properties:ro
     restart: on-failure
     depends_on:
-      mosquitto:
-        condition: service_healthy
+      mqtt-wait:
+        condition: service_completed_successfully
 
   opcua-simulator:
     build:
