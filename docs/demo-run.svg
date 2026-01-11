@@ -1,0 +1,14 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='980' height='200' viewBox='0 0 980 200'>
+  <rect width='100%' height='100%' fill='#0f172a' />
+  <rect x='10' y='10' width='960' height='180' rx='8' fill='#111827' stroke='#1f2937' stroke-width='1' />
+  <text x='20' y='34' font-family='ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace' font-size='14' fill='#e5e7eb'>
+    <tspan x='20' y='34'>2026-01-11 07:56:42 [info     ] bridge_starting</tspan>
+    <tspan x='20' y='54'>2026-01-11 07:56:42 [warning  ] no_client_certificate_configured</tspan>
+    <tspan x='20' y='74'>2026-01-11 07:56:42 [info     ] endpoint_connected             endpoint=simulator url=opc.tcp://localhost:4840</tspan>
+    <tspan x='20' y='94'>2026-01-11 07:56:42 [info     ] connection_pool_ready          connected=1 total=1</tspan>
+    <tspan x='20' y='114'>2026-01-11 07:56:42 [info     ] bridge_started</tspan>
+    <tspan x='20' y='134'>2026-01-11 07:56:42 [info     ] subscription_created           endpoint=opc.tcp://localhost:4840 items=1</tspan>
+    <tspan x='20' y='154'>2026-01-11 07:57:00 [info     ] bridge_stopping</tspan>
+    <tspan x='20' y='174'>2026-01-11 07:57:00 [info     ] bridge_stopped</tspan>
+  </text>
+</svg>

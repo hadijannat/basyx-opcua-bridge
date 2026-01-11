@@ -116,16 +116,11 @@ sequenceDiagram
     OPCUA-->>Bridge: OK
 ```
 
-### Example Runtime Output
+### Real Runtime Output (Captured)
 
-```text
-2026-01-11 07:42:10 [info     ] bridge_starting
-2026-01-11 07:42:10 [info     ] endpoint_connected             endpoint=production-line-1 url=opc.tcp://your-plc:4840
-2026-01-11 07:42:10 [info     ] connection_pool_ready          connected=1 total=1
-2026-01-11 07:42:10 [info     ] subscription_created           endpoint=opc.tcp://your-plc:4840 items=12
-2026-01-11 07:42:11 [info     ] bridge_started
-2026-01-11 07:42:15 [info     ] audit_entry                   event_type=WRITE node_id=ns=2;s=Speed user_id=operator@factory new_value=55.0
-```
+<p align="center">
+  <img src="docs/demo-run.svg" alt="Bridge runtime output" width="700"/>
+</p>
 
 ---
 
