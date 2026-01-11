@@ -40,6 +40,17 @@ def _request_json(method: str, url: str, payload: object | None = None) -> int:
         return 0
 
 
+async def _write_value(url: str, value: float) -> int:
+    payloads = ({"value": value}, value)
+    methods = ("PATCH", "PUT")
+    for method in methods:
+        for payload in payloads:
+            status = await asyncio.to_thread(_request_json, method, url, payload)
+            if status in (200, 204):
+                return status
+    return status
+
+
 async def _wait_for_http(url: str, timeout: float) -> None:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
@@ -98,11 +109,9 @@ async def test_mqtt_event_triggers_opcua_write():
 
     await asyncio.sleep(2.0)
     target_value = 55.0
-    status = await asyncio.to_thread(
-        _request_json,
-        "PATCH",
+    status = await _write_value(
         f"{SM_REPO_BASE_URL}/submodels/{encoded}/submodel-elements/Temperature/$value",
-        {"value": target_value},
+        target_value,
     )
     assert status in (200, 204)
 
