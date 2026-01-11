@@ -64,6 +64,8 @@ jobs:
         run: pip install -e ".[dev]"
       - name: Start e2e stack
         run: docker compose -f docker/compose.e2e.yml up -d --build
+      - name: Wait for e2e services
+        run: ./scripts/e2e_up.sh
       - name: Run MQTT event E2E test
         run: pytest tests/integration/test_mqtt_event_e2e.py
       - name: Dump e2e logs on failure

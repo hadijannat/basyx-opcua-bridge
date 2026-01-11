@@ -4,8 +4,10 @@ set -euo pipefail
 compose_file="${COMPOSE_FILE:-docker/compose.e2e.yml}"
 timeout="${E2E_TIMEOUT:-60}"
 
-echo "Starting E2E stack..."
-docker compose -f "$compose_file" up -d --build
+if [ "${E2E_UP_SKIP_START:-0}" != "1" ]; then
+  echo "Starting E2E stack..."
+  docker compose -f "$compose_file" up -d --build
+fi
 
 python - <<'PY'
 import os
