@@ -32,7 +32,7 @@ def wait_for_http(urls) -> None:
                     if resp.status == 200:
                         print(f"Ready: {url}")
                         return
-            except urllib.error.URLError:
+            except (urllib.error.URLError, ConnectionResetError):
                 continue
         time.sleep(1)
     raise SystemExit(f"Timed out waiting for {', '.join(urls)}")
