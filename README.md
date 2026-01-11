@@ -98,6 +98,37 @@ python -m basyx_opcua_bridge.cli.main --config config/bridge.yaml
 
 ---
 
+## 🎬 Visual Demo (Live Flow)
+
+```mermaid
+sequenceDiagram
+    participant OPCUA as OPC UA Server
+    participant Bridge as BaSyx Bridge
+    participant AAS as AAS Server
+
+    OPCUA->>Bridge: DataChange (Temperature = 42.0)
+    Bridge->>Bridge: Map OPC UA → XSD
+    Bridge->>AAS: PATCH /submodel-elements/Temperature/$value
+    AAS-->>Bridge: 204 No Content
+
+    AAS-->>Bridge: (poll) Temperature target = 55.0
+    Bridge->>OPCUA: WriteValue (Speed = 55.0)
+    OPCUA-->>Bridge: OK
+```
+
+### Example Runtime Output
+
+```text
+2026-01-11 07:42:10 [info     ] bridge_starting
+2026-01-11 07:42:10 [info     ] endpoint_connected             endpoint=production-line-1 url=opc.tcp://your-plc:4840
+2026-01-11 07:42:10 [info     ] connection_pool_ready          connected=1 total=1
+2026-01-11 07:42:10 [info     ] subscription_created           endpoint=opc.tcp://your-plc:4840 items=12
+2026-01-11 07:42:11 [info     ] bridge_started
+2026-01-11 07:42:15 [info     ] audit_entry                   event_type=WRITE node_id=ns=2;s=Speed user_id=operator@factory new_value=55.0
+```
+
+---
+
 ## 🏗️ Architecture
 
 ```mermaid
