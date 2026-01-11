@@ -270,6 +270,12 @@ RUN_MQTT_E2E=1 pytest tests/integration/test_mqtt_event_e2e.py
 ./scripts/e2e_down.sh
 ```
 
+### E2E Troubleshooting
+
+- If `test_mqtt_event_e2e` fails to reach the Submodel Repository, increase `E2E_TIMEOUT=60` and rerun.
+- Check service logs: `docker compose -f docker/compose.e2e.yml logs sm-repo mosquitto opcua-simulator`.
+- Ensure ports 8081 (Submodel Repository), 1883 (MQTT), and 4840 (OPC UA) are free on your host.
+
 ### Type Checking & Linting
 
 ```bash
