@@ -40,7 +40,7 @@ services:
       - "${OPCUA_HOST_PORT:-4840}:4840"
 
   bridge:
-    image: ${BRIDGE_IMAGE:-ghcr.io/hadijannat/basyx-opcua-bridge:latest}
+    image: ${BRIDGE_IMAGE:-ghcr.io/hadijannat/basyx-opcua-bridge:0.1.0}
     build:
       context: ../..
       dockerfile: docker/Dockerfile
