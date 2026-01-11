@@ -84,14 +84,18 @@ aas:
   encode_identifiers: true            # base64url encode submodel IDs for REST paths
 ```
 
-For BaSyx/AASX servers, set `url` to the AAS REST v3 base (e.g., `/api/v3.0` or `/api/v3.0/aas`). Control is polling-based; tune
-`poll_interval_seconds` if needed. You can also enable `auto_create_submodels`/`auto_create_elements` in the same
-section to let the bridge create missing items on first sync.
+For BaSyx/AASX servers, set `url` to the AAS REST v3 base (e.g., `/api/v3.0` or `/api/v3.0/aas`). Control can be
+event‑driven via MQTT (see below) with polling as a fallback; tune `poll_interval_seconds` for polling behavior.
+You can also enable `auto_create_submodels`/`auto_create_elements` in the same section to let the bridge create
+missing items on first sync.
 
 ### 3. Run the Bridge
 
 ```bash
-python -m basyx_opcua_bridge.cli.main --config config/bridge.yaml
+basyx-bridge main --config config/bridge.yaml
+
+# Or, if running via module:
+python -m basyx_opcua_bridge.cli.main main --config config/bridge.yaml
 ```
 
 🎉 **That's it!** Your OPC UA data is now live in your AAS.
@@ -265,7 +269,7 @@ pytest tests/ --cov=src --cov-report=html
 pytest tests/integration/
 
 # MQTT event e2e (Docker Compose)
-./scripts/e2e_up.sh
+MQTT_HOST_PORT=1884 ./scripts/e2e_up.sh
 RUN_MQTT_E2E=1 pytest tests/integration/test_mqtt_event_e2e.py
 ./scripts/e2e_down.sh
 ```
@@ -274,7 +278,7 @@ RUN_MQTT_E2E=1 pytest tests/integration/test_mqtt_event_e2e.py
 
 - If `test_mqtt_event_e2e` fails to reach the Submodel Repository, increase `E2E_TIMEOUT=60` and rerun.
 - Check service logs: `docker compose -f docker/compose.e2e.yml logs sm-repo mosquitto opcua-simulator`.
-- Ensure ports 8081 (Submodel Repository), 1883 (MQTT), and 4840 (OPC UA) are free on your host.
+- If 1883 is in use, run `MQTT_HOST_PORT=1884 ./scripts/e2e_up.sh` (the broker stays on 1883 inside Docker).
 
 ### Type Checking & Linting
 
