@@ -45,6 +45,8 @@ class DiscoveredNode:
     value_rank: int | None
     range_constraint: RangeConstraint | None
     confidence: float
+    type_definition: str | None
+    i4aas_type: str | None
 
 
 @dataclass(frozen=True)
@@ -57,6 +59,7 @@ class MappingDecision:
     direction: str
     writable: bool
     confidence: float
+    i4aas_type: str | None
     notes: List[str]
 
 
@@ -69,7 +72,7 @@ class DiscoveryOptions:
     exclude_pattern: Optional[str] = None
     max_depth: int = 5
     root_node: str = "Objects"
-    group_strategy: str = "namespace"  # namespace | path | root
+    group_strategy: str = "namespace"  # namespace | path | root | i4aas
     aas_type: Literal["basyx", "aasx-server", "memory"] = "memory"
     aas_url: Optional[str] = None
     poll_interval_seconds: float = 1.0
@@ -211,8 +214,12 @@ async def _discover_nodes(options: DiscoveryOptions) -> List[DiscoveredNode]:
                 writable = await _is_writable(node)
                 value_rank = await _read_value_rank(node)
                 range_constraint = await _read_range_constraint(node)
+                type_definition = await _read_type_definition_name(node)
+                i4aas_type = _detect_i4aas_type(type_definition)
 
                 confidence = 1.0 if variant_type is not None else 0.5
+                if i4aas_type:
+                    confidence = max(confidence, 0.9)
 
                 results.append(
                     DiscoveredNode(
@@ -227,6 +234,8 @@ async def _discover_nodes(options: DiscoveryOptions) -> List[DiscoveredNode]:
                         value_rank=value_rank,
                         range_constraint=range_constraint,
                         confidence=confidence,
+                        type_definition=type_definition,
+                        i4aas_type=i4aas_type,
                     )
                 )
 
@@ -286,6 +295,8 @@ def _build_mappings(nodes: List[DiscoveredNode], options: DiscoveryOptions) -> T
             notes.append(f"value_rank={node.value_rank}")
         if count > 1:
             notes.append("id_short_collision")
+        if node.i4aas_type:
+            notes.append(f"i4aas_type={node.i4aas_type}")
 
         decisions.append(
             MappingDecision(
@@ -297,6 +308,7 @@ def _build_mappings(nodes: List[DiscoveredNode], options: DiscoveryOptions) -> T
                 direction=direction.value,
                 writable=node.writable,
                 confidence=node.confidence,
+                i4aas_type=node.i4aas_type,
                 notes=notes,
             )
         )
@@ -308,6 +320,11 @@ def _resolve_submodel_id(node: DiscoveredNode, options: DiscoveryOptions) -> str
     group = "root"
     if options.group_strategy == "namespace":
         group = f"ns{node.namespace_index}"
+    elif options.group_strategy == "i4aas":
+        for segment in node.browse_path:
+            if re.search(r"submodel", segment, re.IGNORECASE):
+                group = segment
+                break
     elif options.group_strategy == "path":
         if len(node.browse_path) > 1:
             group = "-".join(node.browse_path[:-1])
@@ -409,3 +426,40 @@ async def _read_range_constraint(node: Node) -> RangeConstraint | None:
     if low is None and high is None:
         return None
     return RangeConstraint(min_value=low, max_value=high)
+
+
+async def _read_type_definition_name(node: Node) -> str | None:
+    try:
+        type_def = await node.read_type_definition()
+        type_node = node.session.get_node(type_def)
+        browse_name = await type_node.read_browse_name()
+        return str(browse_name.Name)
+    except Exception:
+        return None
+
+
+def _detect_i4aas_type(type_definition: str | None) -> str | None:
+    if not type_definition:
+        return None
+    i4aas_types = {
+        "AASPropertyType",
+        "AASRangeType",
+        "AASFileType",
+        "AASBlobType",
+        "AASMultiLanguagePropertyType",
+        "AASReferenceElementType",
+        "AASRelationshipElementType",
+        "AASAnnotatedRelationshipElementType",
+        "AASCapabilityType",
+        "AASOperationType",
+        "AASEventType",
+        "AASSubmodelElementCollectionType",
+        "AASSubmodelType",
+        "AASAssetAdministrationShellType",
+    }
+    for candidate in i4aas_types:
+        if candidate.lower() == type_definition.lower():
+            return candidate
+    if "aas" in type_definition.lower():
+        return type_definition
+    return None

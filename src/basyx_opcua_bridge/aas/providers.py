@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import base64
 import json
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -13,7 +14,7 @@ import structlog
 from basyx.aas import model as aas_model
 from basyx.aas.adapter.json import json_serialization
 
-from basyx_opcua_bridge.config.models import AasProviderConfig, SyncDirection
+from basyx_opcua_bridge.config.models import AasProviderConfig, AasEventsConfig, SyncDirection
 from basyx_opcua_bridge.mapping.engine import MappingEngine, ResolvedMapping
 from basyx_opcua_bridge.sync.control import WriteRequest
 
@@ -149,6 +150,7 @@ class HttpAasProvider:
         self._encode_ids = config.encode_identifiers
         self._auto_create_submodels = config.auto_create_submodels
         self._auto_create_elements = config.auto_create_elements
+        self._events = config.events
         self._submodels: Dict[str, aas_model.Submodel] = {}
         self._mappings_by_key: Dict[MappingKey, ResolvedMapping] = {}
         self._mappings_by_id_short: Dict[str, List[ResolvedMapping]] = {}
@@ -201,6 +203,11 @@ class HttpAasProvider:
     async def write_requests(self, shutdown_event: asyncio.Event) -> AsyncIterator[WriteRequest]:
         if not self._config.enable_events:
             return
+        if self._events.enabled and self._events.mqtt_url and self._events.mqtt_topic:
+            async for request in self._mqtt_write_requests(shutdown_event):
+                yield request
+            return
+
         while not shutdown_event.is_set():
             for mapping in list(self._control_mappings):
                 value = await self._read_value(mapping)
@@ -218,6 +225,16 @@ class HttpAasProvider:
         if self._auto_create_elements:
             for mapping in mappings:
                 await self._ensure_element(mapping)
+
+    def _resolve_mapping(self, aas_id_short: str, submodel_id: Optional[str]) -> Optional[ResolvedMapping]:
+        if submodel_id:
+            return self._mappings_by_key.get(MappingKey(submodel_id, aas_id_short))
+        matches = self._mappings_by_id_short.get(aas_id_short, [])
+        if len(matches) == 1:
+            return matches[0]
+        if len(matches) > 1:
+            logger.warning("ambiguous_aas_id_short", aas_id_short=aas_id_short)
+        return None
 
     async def _ensure_submodels(self) -> None:
         for submodel_id, submodel in self._submodels.items():
@@ -358,6 +375,62 @@ class HttpAasProvider:
         except Exception as e:
             logger.warning("aas_request_failed", url=url, error=str(e))
             return 0, None
+
+    async def _mqtt_write_requests(self, shutdown_event: asyncio.Event) -> AsyncIterator[WriteRequest]:
+        events = self._events
+        if not events.mqtt_url or not events.mqtt_topic:
+            return
+        try:
+            from asyncio_mqtt import Client as MqttClient
+        except Exception as exc:
+            logger.warning("mqtt_dependency_missing", error=str(exc))
+            return
+
+        parsed = urllib.parse.urlparse(str(events.mqtt_url))
+        host = parsed.hostname or ""
+        port = parsed.port or (8883 if parsed.scheme == "mqtts" else 1883)
+        tls_context = ssl.create_default_context() if parsed.scheme == "mqtts" else None
+
+        async with MqttClient(
+            host,
+            port=port,
+            username=events.mqtt_username,
+            password=events.mqtt_password,
+            tls_context=tls_context,
+        ) as client:
+            async with client.filtered_messages(events.mqtt_topic) as messages:
+                await client.subscribe(events.mqtt_topic, qos=events.mqtt_qos)
+                async for message in messages:
+                    if shutdown_event.is_set():
+                        return
+                    request = self._parse_event_message(message.payload, events)
+                    if request:
+                        yield request
+
+    def _parse_event_message(self, payload: bytes, events: AasEventsConfig) -> Optional[WriteRequest]:
+        try:
+            decoded = json.loads(payload.decode("utf-8"))
+        except Exception:
+            logger.warning("mqtt_payload_invalid", payload=payload[:256])
+            return None
+
+        if not isinstance(decoded, dict):
+            return None
+
+        id_short = decoded.get(events.payload_id_short_key)
+        submodel_id = decoded.get(events.payload_submodel_id_key)
+        value = decoded.get(events.payload_value_key)
+
+        if not id_short:
+            logger.warning("mqtt_payload_missing_id_short")
+            return None
+
+        mapping = self._resolve_mapping(str(id_short), str(submodel_id) if submodel_id else None)
+        if not mapping:
+            logger.warning("mqtt_payload_mapping_missing", id_short=id_short, submodel_id=submodel_id)
+            return None
+
+        return WriteRequest(node_id=mapping.rule.opcua_node_id, value=value)
 
 
 def build_aas_provider(config: AasProviderConfig, mapping_engine: MappingEngine) -> AasProvider:

@@ -112,6 +112,8 @@ python -m basyx_opcua_bridge.cli.main discover \
   --group namespace
 ```
 
+If the server exposes the OPC 30270 (I4AAS) model, use `--group i4aas` to group by Submodel‑like nodes.
+
 Provision the AAS server (create submodels/elements) and optionally start the bridge:
 
 ```bash
@@ -124,6 +126,23 @@ python -m basyx_opcua_bridge.cli.main bootstrap \
 ```
 
 The discovery report includes node → AAS decisions, inferred types, and confidence scores.
+
+### Event‑Driven AAS → OPC UA (MQTT)
+
+Polling is the default fallback. To enable event‑driven writes, configure MQTT events:
+
+```yaml
+aas:
+  events:
+    enabled: true
+    mqtt_url: mqtt://localhost:1883
+    mqtt_topic: basyx/aas/changes/#
+    payload_id_short_key: idShort
+    payload_submodel_id_key: submodelId
+    payload_value_key: value
+```
+
+The bridge expects JSON payloads containing `idShort`, `submodelId` (optional), and `value`.
 
 ---
 

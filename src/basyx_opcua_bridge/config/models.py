@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Literal, Optional, List
 
 from pydantic import (
+    AnyUrl,
     BaseModel,
     Field,
     HttpUrl,
@@ -113,6 +114,18 @@ class SemanticConfig(BaseModel):
     iri_resolver_url: Optional[HttpUrl] = None
     cache_ttl_seconds: int = 3600
 
+class AasEventsConfig(BaseModel):
+    enabled: bool = False
+    mqtt_url: Optional[AnyUrl] = None
+    mqtt_topic: Optional[str] = None
+    mqtt_username: Optional[str] = None
+    mqtt_password: Optional[str] = None
+    mqtt_qos: int = Field(default=0, ge=0, le=2)
+    payload_id_short_key: str = "idShort"
+    payload_submodel_id_key: str = "submodelId"
+    payload_value_key: str = "value"
+
+
 class AasProviderConfig(BaseModel):
     type: Literal["basyx", "aasx-server", "memory"] = "memory"
     url: Optional[HttpUrl] = None
@@ -122,6 +135,7 @@ class AasProviderConfig(BaseModel):
     encode_identifiers: bool = True
     auto_create_submodels: bool = True
     auto_create_elements: bool = False
+    events: AasEventsConfig = Field(default_factory=AasEventsConfig)
 
 class ObservabilityConfig(BaseModel):
     metrics_enabled: bool = True
