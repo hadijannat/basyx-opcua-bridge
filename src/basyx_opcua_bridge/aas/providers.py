@@ -4,6 +4,8 @@ import asyncio
 import base64
 import json
 import ssl
+import hashlib
+import re
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -20,6 +22,23 @@ from basyx_opcua_bridge.mapping.engine import MappingEngine, ResolvedMapping
 from basyx_opcua_bridge.sync.control import WriteRequest
 
 logger = structlog.get_logger(__name__)
+
+_ID_SHORT_MAX_LEN = 64
+
+
+def _derive_id_short(identifier: str, used: set[str]) -> str:
+    candidate = re.split(r"[#/:]", identifier)[-1] or identifier
+    candidate = re.sub(r"[^A-Za-z0-9_]", "_", candidate)
+    if not candidate:
+        candidate = "submodel"
+    if not candidate[0].isalpha():
+        candidate = f"sm_{candidate}"
+    candidate = candidate[:_ID_SHORT_MAX_LEN]
+    if candidate in used:
+        suffix = hashlib.sha1(identifier.encode("utf-8")).hexdigest()[:6]
+        candidate = f"{candidate[:_ID_SHORT_MAX_LEN - 7]}_{suffix}"
+    used.add(candidate)
+    return candidate
 
 
 class AasProvider(Protocol):
@@ -67,10 +86,12 @@ class MemoryAasProvider:
 
     async def register_mappings(self, mappings: List[ResolvedMapping]) -> None:
         submodel_ids = {m.rule.submodel_id for m in mappings}
+        used_id_shorts = {sm.id_short for sm in self._submodels.values() if getattr(sm, "id_short", None)}
         for submodel_id in submodel_ids:
             if submodel_id in self._submodels:
                 continue
-            submodel = aas_model.Submodel(id_=submodel_id)
+            id_short = _derive_id_short(submodel_id, used_id_shorts)
+            submodel = aas_model.Submodel(id_=submodel_id, id_short=id_short)
             self._submodels[submodel_id] = submodel
             self._engine.register_submodel(submodel, "ns=0")
 
@@ -191,10 +212,12 @@ class HttpAasProvider:
 
     async def register_mappings(self, mappings: List[ResolvedMapping]) -> None:
         submodel_ids = {m.rule.submodel_id for m in mappings}
+        used_id_shorts = {sm.id_short for sm in self._submodels.values() if getattr(sm, "id_short", None)}
         for submodel_id in submodel_ids:
             if submodel_id in self._submodels:
                 continue
-            submodel = aas_model.Submodel(id_=submodel_id)
+            id_short = _derive_id_short(submodel_id, used_id_shorts)
+            submodel = aas_model.Submodel(id_=submodel_id, id_short=id_short)
             self._submodels[submodel_id] = submodel
             self._engine.register_submodel(submodel, "ns=0")
 
