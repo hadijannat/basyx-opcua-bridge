@@ -40,14 +40,24 @@ def _request_json(method: str, url: str, payload: object | None = None) -> int:
         return 0
 
 
-async def _write_value(url: str, value: float) -> int:
+async def _write_value_only(url: str, value: float) -> int:
     payloads = ({"value": value}, value)
     methods = ("PATCH", "PUT")
+    last_status = 0
     for method in methods:
         for payload in payloads:
             status = await asyncio.to_thread(_request_json, method, url, payload)
+            last_status = status
             if status in (200, 204):
                 return status
+    return last_status
+
+
+async def _write_value_any(base_url: str, value: float) -> int:
+    for suffix in ("$value", "value"):
+        status = await _write_value_only(f"{base_url}/{suffix}", value)
+        if status in (200, 204):
+            return status
     return status
 
 
@@ -109,10 +119,16 @@ async def test_mqtt_event_triggers_opcua_write():
 
     await asyncio.sleep(2.0)
     target_value = 55.0
-    status = await _write_value(
-        f"{SM_REPO_BASE_URL}/submodels/{encoded}/submodel-elements/Temperature/$value",
-        target_value,
-    )
+    base_url = f"{SM_REPO_BASE_URL}/submodels/{encoded}/submodel-elements/Temperature"
+    status = await _write_value_any(base_url, target_value)
+    if status not in (200, 204):
+        updated = aas_model.Property(
+            id_short="Temperature",
+            value_type=aas_model.datatypes.Double,
+            value=target_value,
+        )
+        updated_payload = json.loads(json.dumps(updated, cls=json_serialization.AASToJsonEncoder))
+        status = await asyncio.to_thread(_request_json, "PUT", base_url, updated_payload)
     assert status in (200, 204)
 
     await _wait_for_opcua_value("ns=2;s=Temperature", target_value, timeout=E2E_TIMEOUT)
