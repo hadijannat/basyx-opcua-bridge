@@ -10,7 +10,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 from dataclasses import dataclass
-from typing import Any, AsyncIterator, Dict, List, Optional, Protocol, Tuple
+from typing import Any, AsyncIterator, Dict, List, Optional, Protocol, Tuple, cast
 
 import structlog
 from basyx.aas import model as aas_model
@@ -407,7 +407,8 @@ class HttpAasProvider:
         else:
             if hasattr(element, "value"):
                 element.value = value
-        return json.loads(json.dumps(element, cls=json_serialization.AASToJsonEncoder))
+        payload = json.loads(json.dumps(element, cls=json_serialization.AASToJsonEncoder))
+        return cast(dict[str, Any], payload)
 
     async def _request_json(
         self, method: str, url: str, payload: Any | None = None
