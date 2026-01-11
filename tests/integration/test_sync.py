@@ -52,8 +52,6 @@ async def test_opcua_to_aas_sync(opcua_simulator, sample_config):
     
     # 7. Wait for sync
     # We poll the AAS element
-    element = sm.get_referable("Temperature")
-    
     try:
         # Give it a second to process
         for _ in range(10):

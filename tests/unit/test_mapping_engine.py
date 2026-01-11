@@ -1,8 +1,6 @@
-import pytest
-import math
 from basyx.aas import model as aas_model
-from basyx_opcua_bridge.mapping.engine import MappingEngine, MappingError
-from basyx_opcua_bridge.config.models import MappingRule, SyncDirection
+from basyx_opcua_bridge.mapping.engine import MappingEngine
+from basyx_opcua_bridge.config.models import MappingRule
 
 def test_mapping_resolution():
     mappings = [

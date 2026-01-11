@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError as PydanticValidationError
 from basyx_opcua_bridge.config.models import (
-    BridgeConfig, EndpointConfig, MappingRule, SecurityConfig, RangeConstraint
+    EndpointConfig, SecurityConfig, RangeConstraint
 )
 
 def test_endpoint_validation():
