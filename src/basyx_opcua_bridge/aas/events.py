@@ -4,6 +4,7 @@ import base64
 import hashlib
 import json
 import time
+import urllib.parse
 from collections import OrderedDict
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
@@ -19,6 +20,11 @@ class EventHints:
 def decode_base64url(value: str) -> str:
     if not value:
         return value
+    if "%" in value:
+        try:
+            return urllib.parse.unquote(value)
+        except Exception:
+            pass
     try:
         padding = "=" * (-len(value) % 4)
         decoded = base64.urlsafe_b64decode(value + padding)

@@ -496,6 +496,8 @@ class HttpAasProvider:
             return None
 
         mapping = self._resolve_mapping(str(id_short), str(submodel_id) if submodel_id else None)
+        if not mapping and submodel_id:
+            mapping = self._resolve_mapping(str(id_short), None)
         if not mapping:
             logger.warning("mqtt_payload_mapping_missing", id_short=id_short, submodel_id=submodel_id)
             return None
