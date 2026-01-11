@@ -19,7 +19,7 @@
   <img src="https://img.shields.io/badge/License-Apache%202.0-blue" alt="License"/>
   <img src="https://img.shields.io/badge/OPC%20UA-Compliant-green" alt="OPC UA"/>
   <img src="https://img.shields.io/badge/I4AAS-30270-purple" alt="I4AAS"/>
-  <img src="https://img.shields.io/badge/Tests-11%20Passed-brightgreen" alt="Tests"/>
+  <img src="https://img.shields.io/badge/Tests-13%20Passed-brightgreen" alt="Tests"/>
 </p>
 
 ---
@@ -80,7 +80,7 @@ mappings:
 aas:
   type: basyx                         # basyx | aasx-server | memory
   url: http://localhost:8080/api/v3.0 # AAS REST base URL (bridge appends /aas if missing)
-  enable_events: true                 # enable AAS→OPC UA control polling
+  enable_events: true                 # enable AAS→OPC UA control loop (polling or MQTT)
   encode_identifiers: true            # base64url encode submodel IDs for REST paths
 ```
 
@@ -142,7 +142,18 @@ aas:
     payload_value_key: value
 ```
 
-The bridge expects JSON payloads containing `idShort`, `submodelId` (optional), and `value`.
+The bridge accepts JSON payloads with `idShort` (or `idShortPath` for nested elements), optional
+`submodelId`, and `value`. Payloads may also be wrapped in `data`, `payload`, or `event`.
+
+Example MQTT payload:
+
+```json
+{
+  "idShortPath": "Sensors/Temperature",
+  "submodelId": "urn:factory:submodel:sensors",
+  "value": 55.0
+}
+```
 
 ---
 
@@ -253,6 +264,14 @@ pytest tests/integration/
 ruff check src/      # Linting
 mypy src/            # Type checking
 ```
+
+### AAS API Compatibility Check
+
+```bash
+python scripts/validate_aas_openapi.py
+```
+
+This script validates core AAS REST endpoints and schema compliance against the IDTA OpenAPI specs.
 
 ---
 
