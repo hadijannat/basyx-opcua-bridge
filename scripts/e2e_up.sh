@@ -62,7 +62,7 @@ def wait_for_http(base_candidates, paths) -> None:
     except Exception as exc:
         print(f"Failed to fetch docker logs: {exc}")
     raise SystemExit(
-        f\"Timed out waiting for {', '.join([b + p for b in base_candidates for p in paths])}\"
+        f"Timed out waiting for {', '.join([b + p for b in base_candidates for p in paths])}"
     )
 
 def wait_for_tcp(host: str, port: int) -> None:
