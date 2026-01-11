@@ -18,7 +18,7 @@ from basyx.aas.adapter.json import json_serialization
 
 from basyx_opcua_bridge.aas.events import EventHints, RecentWriteCache, parse_basyx_topic
 from basyx_opcua_bridge.config.models import AasProviderConfig, AasEventsConfig, SyncDirection
-from basyx_opcua_bridge.mapping.engine import MappingEngine, ResolvedMapping
+from basyx_opcua_bridge.mapping.engine import MappingEngine, ResolvedMapping, XSD_TO_AAS_DATATYPE
 from basyx_opcua_bridge.sync.control import WriteRequest
 
 logger = structlog.get_logger(__name__)
@@ -293,7 +293,8 @@ class HttpAasProvider:
             if status == 200:
                 continue
             if status == 404:
-                payload = json.loads(json.dumps(submodel, cls=json_serialization.AASToJsonEncoder))
+                minimal = aas_model.Submodel(id_=submodel.id, id_short=submodel.id_short)
+                payload = json.loads(json.dumps(minimal, cls=json_serialization.AASToJsonEncoder))
                 created, _ = await self._request_json("POST", self._submodels_url(), payload)
                 if created in (200, 201, 204, 409):
                     continue
@@ -334,6 +335,13 @@ class HttpAasProvider:
                     status, _ = await self._request_json(method, url, payload)
                     if status in (200, 204):
                         return True
+        payload = self._build_element_payload(mapping, value)
+        status, _ = await self._request_json(
+            "PUT",
+            self._element_url(mapping.rule.submodel_id, mapping.rule.aas_id_short),
+            payload,
+        )
+        return status in (200, 201, 204)
         return False
 
     def _submodels_url(self) -> str:
@@ -386,6 +394,20 @@ class HttpAasProvider:
             except (TypeError, ValueError):
                 return value
         return value
+
+    def _build_element_payload(self, mapping: ResolvedMapping, value: Any) -> dict[str, Any]:
+        element = mapping.element
+        if element is None:
+            value_type = XSD_TO_AAS_DATATYPE.get(mapping.rule.value_type, aas_model.datatypes.String)
+            element = aas_model.Property(
+                id_short=mapping.rule.aas_id_short,
+                value_type=value_type,
+                value=value,
+            )
+        else:
+            if hasattr(element, "value"):
+                element.value = value
+        return json.loads(json.dumps(element, cls=json_serialization.AASToJsonEncoder))
 
     async def _request_json(
         self, method: str, url: str, payload: Any | None = None
