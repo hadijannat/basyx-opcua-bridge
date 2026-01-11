@@ -142,7 +142,7 @@ async def test_mqtt_event_triggers_opcua_write():
             value=target_value,
         )
         updated_payload = json.loads(json.dumps(updated, cls=json_serialization.AASToJsonEncoder))
-            status = await asyncio.to_thread(_request_json, "PUT", element_base_url, updated_payload)
+        status = await asyncio.to_thread(_request_json, "PUT", element_base_url, updated_payload)
     assert status in (200, 204)
 
     await _wait_for_opcua_value("ns=2;s=Temperature", target_value, timeout=E2E_TIMEOUT)
