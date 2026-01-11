@@ -3,6 +3,11 @@ services:
     image: eclipse-mosquitto:2.0
     ports:
       - "1883:1883"
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$SYS/broker/uptime", "-C", "1", "-W", "1"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
 
   sm-repo:
     image: ${SM_REPO_IMAGE:-eclipsebasyx/submodel-repository:2.0.0-SNAPSHOT}
@@ -16,8 +21,10 @@ services:
       MQTT_CLIENTID: sm-repo-e2e
       MQTT_HOSTNAME: mosquitto
       MQTT_PORT: 1883
+    restart: on-failure
     depends_on:
-      - mosquitto
+      mosquitto:
+        condition: service_healthy
 
   opcua-simulator:
     build:
