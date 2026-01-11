@@ -1,0 +1,57 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "${MQTT_HOST_PORT:-1883}:1883"
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    healthcheck:
+      test: ["CMD", "mosquitto_pub", "-h", "localhost", "-t", "healthcheck", "-m", "ok"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  sm-repo:
+    image: ${SM_REPO_IMAGE:-eclipsebasyx/submodel-repository:2.0.0-SNAPSHOT}
+    ports:
+      - "${SM_REPO_HOST_PORT:-8081}:8080"
+    environment:
+      SERVER_PORT: 8080
+    volumes:
+      - ./basyx/submodel-repo.properties:/application/application.properties:ro
+    restart: on-failure
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+
+  opcua-simulator:
+    build:
+      context: ../../docker/opcua-simulator
+    ports:
+      - "${OPCUA_HOST_PORT:-4840}:4840"
+
+  bridge:
+    image: ${BRIDGE_IMAGE:-ghcr.io/hadijannat/basyx-opcua-bridge:latest}
+    build:
+      context: ../..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ./config/bridge.yaml:/app/config/bridge.yaml:ro
+    ports:
+      - "${BRIDGE_METRICS_PORT:-9090}:9090"
+    depends_on:
+      - mosquitto
+      - sm-repo
+      - opcua-simulator
+
+  prometheus:
+    image: prom/prometheus:v2.54.1
+    profiles: ["metrics"]
+    ports:
+      - "${PROMETHEUS_HOST_PORT:-9091}:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - bridge

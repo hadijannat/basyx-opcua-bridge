@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: basyx-opcua-bridge
+  labels:
+    app.kubernetes.io/name: basyx-opcua-bridge
+    app.kubernetes.io/component: bridge
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: basyx-opcua-bridge
+      app.kubernetes.io/component: bridge
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: basyx-opcua-bridge
+        app.kubernetes.io/component: bridge
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "9090"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: bridge
+          image: ghcr.io/hadijannat/basyx-opcua-bridge:latest
+          imagePullPolicy: IfNotPresent
+          args: ["--config", "/app/config/bridge.yaml"]
+          ports:
+            - name: metrics
+              containerPort: 9090
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          volumeMounts:
+            - name: bridge-config
+              mountPath: /app/config/bridge.yaml
+              subPath: bridge.yaml
+      volumes:
+        - name: bridge-config
+          configMap:
+            name: basyx-opcua-bridge-config

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: basyx-opcua-bridge
+  labels:
+    app.kubernetes.io/name: basyx-opcua-bridge
+    app.kubernetes.io/component: bridge
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: basyx-opcua-bridge
+    app.kubernetes.io/component: bridge
+  ports:
+    - name: metrics
+      port: 9090
+      targetPort: metrics

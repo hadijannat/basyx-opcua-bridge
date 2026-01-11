@@ -102,6 +102,24 @@ python -m basyx_opcua_bridge.cli.main main --config config/bridge.yaml
 
 ---
 
+## 🚀 Golden Path Demo (One Command)
+
+Spin up a complete demo stack (OPC UA simulator + BaSyx Submodel Repository + Bridge + MQTT) with:
+
+```bash
+docker compose -f examples/docker-compose/compose.yml up --build
+```
+
+If port `1883` is busy on your host, override it:
+
+```bash
+MQTT_HOST_PORT=1884 docker compose -f examples/docker-compose/compose.yml up --build
+```
+
+Demo details and verification steps live in `examples/docker-compose/README.md`.
+
+---
+
 ## 🧭 Auto‑Discovery & Bootstrap (No Manual Mapping)
 
 Generate a ready‑to‑run config straight from an OPC UA endpoint:
@@ -336,7 +354,22 @@ docker run -v $(pwd)/config:/app/config basyx-opcua-bridge
 
 ### Kubernetes
 
-See `examples/kubernetes/` for production-ready deployment manifests.
+Kustomize manifests are available in `examples/kubernetes/`:
+
+```bash
+kubectl apply -k examples/kubernetes
+```
+
+Update `examples/kubernetes/bridge-config.yaml` with your OPC UA/AAS endpoints before deploying.
+
+---
+
+## 📦 Releases & Artifacts
+
+- **Container image**: `ghcr.io/hadijannat/basyx-opcua-bridge:<version>`
+- **Python package**: published on PyPI when tags are pushed
+
+Releases are created from semver tags (e.g., `v1.0.0`) and include SBOM/provenance metadata plus signed container images.
 
 ---
 

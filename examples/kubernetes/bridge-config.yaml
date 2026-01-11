@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: basyx-opcua-bridge-config
+  labels:
+    app.kubernetes.io/name: basyx-opcua-bridge
+    app.kubernetes.io/component: bridge
+
+data:
+  bridge.yaml: |
+    opcua:
+      endpoints:
+        - url: opc.tcp://opcua.example:4840
+          name: opcua
+          security_policy: None
+          security_mode: None
+      connection_pool_size: 2
+      subscription_interval_ms: 500
+
+    mappings:
+      - opcua_node_id: "ns=2;s=Temperature"
+        aas_id_short: Temperature
+        submodel_id: "urn:example:submodel:1"
+        direction: bidirectional
+        value_type: xs:double
+
+    aas:
+      type: basyx
+      url: http://aas.example:8080/submodels
+      enable_events: true
+      auto_create_submodels: true
+      auto_create_elements: true
+      events:
+        enabled: true
+        mqtt_url: mqtt://mosquitto.default.svc.cluster.local:1883
+        mqtt_topic: sm-repository/+/submodels/+/submodelElements/#
+        payload_id_short_key: idShort
+        payload_submodel_id_key: submodelId
+        payload_value_key: value
+        dedup_ttl_seconds: 2.0
+        dedup_max_entries: 2048
+
+    observability:
+      metrics_enabled: true
+      metrics_port: 9090
