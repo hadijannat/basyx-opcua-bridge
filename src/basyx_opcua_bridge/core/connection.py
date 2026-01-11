@@ -65,23 +65,34 @@ class OpcUaConnectionPool:
 
     async def _connect_endpoint(self, endpoint: EndpointConfig) -> None:
         client = Client(url=endpoint.url, timeout=endpoint.timeout_ms / 1000)
-        if endpoint.security_policy != "None":
-            await self._configure_security(client, endpoint)
+        policy_name = endpoint.security_policy.value if hasattr(endpoint.security_policy, "value") else str(endpoint.security_policy)
+        if policy_name != "None":
+            await self._configure_security(client, endpoint, policy_name)
         
         await client.connect()
         
         async with self._lock:
+            old = self._connections.get(endpoint.url)
+            if old:
+                try:
+                    await old.close_all_subscriptions()
+                    await old.client.disconnect()
+                except Exception:
+                    pass
             self._connections[endpoint.url] = PooledConnection(client=client, endpoint=endpoint)
         logger.info("endpoint_connected", endpoint=endpoint.name, url=endpoint.url)
 
-    async def _configure_security(self, client: Client, endpoint: EndpointConfig) -> None:
-        policy = getattr(ua.SecurityPolicyType, "Basic256Sha256", None)
-        # Simplified policy mapping
+    async def _configure_security(self, client: Client, endpoint: EndpointConfig, policy_name: str) -> None:
+        policy = getattr(ua.SecurityPolicyType, policy_name, None)
+        if policy is None:
+            raise ConnectionError(f"Unsupported security policy: {policy_name}")
+        mode_name = endpoint.security_mode.value if hasattr(endpoint.security_mode, "value") else str(endpoint.security_mode)
+        mode = getattr(ua.MessageSecurityMode, mode_name, ua.MessageSecurityMode.SignAndEncrypt)
         await client.set_security(
             policy=policy,
             certificate=str(self._cert_manager.client_cert_path) if self._cert_manager.client_cert_path else None,
             private_key=str(self._cert_manager.client_key_path) if self._cert_manager.client_key_path else None,
-            mode=ua.MessageSecurityMode.SignAndEncrypt # Simplified default
+            mode=mode
         )
 
     @asynccontextmanager
@@ -89,13 +100,37 @@ class OpcUaConnectionPool:
         async with self._lock:
             conn = self._connections.get(endpoint_url)
             if not conn:
-                raise ConnectionError(f"No connection for {endpoint_url}")
+                endpoint = next((ep for ep in self._endpoints if ep.url == endpoint_url), None)
+                if not endpoint:
+                    raise ConnectionError(f"No endpoint for {endpoint_url}")
+                await self._connect_endpoint(endpoint)
+                conn = self._connections.get(endpoint_url)
         
-        if not conn.is_connected:
+        if conn and not conn.is_connected:
             await self._connect_endpoint(conn.endpoint)
-            conn = self._connections[endpoint_url]
+            conn = self._connections.get(endpoint_url)
         
+        if not conn:
+            raise ConnectionError(f"No connection for {endpoint_url}")
         yield conn
+
+    async def maintain_connections(self, shutdown_event: asyncio.Event, interval_seconds: float = 5.0) -> None:
+        try:
+            while not shutdown_event.is_set():
+                await asyncio.sleep(interval_seconds)
+                await self._reconnect_if_needed()
+        except asyncio.CancelledError:
+            return
+
+    async def _reconnect_if_needed(self) -> None:
+        for endpoint in self._endpoints:
+            async with self._lock:
+                conn = self._connections.get(endpoint.url)
+            if conn is None or not conn.is_connected:
+                try:
+                    await self._connect_endpoint(endpoint)
+                except Exception as e:
+                    logger.warning("endpoint_reconnect_failed", endpoint=endpoint.url, error=str(e))
 
     async def disconnect(self) -> None:
         async with self._lock:

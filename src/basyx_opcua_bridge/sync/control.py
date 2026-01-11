@@ -27,6 +27,8 @@ class ControlManager:
         self._metrics = metrics
         self._audit = audit
         self._sem = asyncio.Semaphore(10)
+        self._queue: asyncio.Queue[WriteRequest] = asyncio.Queue(maxsize=1000)
+        self._running = False
 
     async def write(self, request: WriteRequest) -> bool:
         async with self._sem:
@@ -45,3 +47,27 @@ class ControlManager:
                 logger.error("write_failed", error=str(e))
                 self._metrics.record_sync_event("aas_to_opcua", False)
                 return False
+
+    async def enqueue_write(self, request: WriteRequest) -> bool:
+        try:
+            self._queue.put_nowait(request)
+            return True
+        except asyncio.QueueFull:
+            logger.warning("control_queue_full_drop_newest", node_id=request.node_id)
+            return False
+
+    async def run(self, shutdown_event: asyncio.Event) -> None:
+        if self._running:
+            return
+        self._running = True
+        try:
+            while not shutdown_event.is_set():
+                try:
+                    request = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                except asyncio.TimeoutError:
+                    continue
+                await self.write(request)
+        except asyncio.CancelledError:
+            return
+        finally:
+            self._running = False

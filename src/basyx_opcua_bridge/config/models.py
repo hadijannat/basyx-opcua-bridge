@@ -63,6 +63,7 @@ class OpcUaConfig(BaseModel):
     endpoints: List[EndpointConfig] = Field(..., min_length=1)
     connection_pool_size: int = Field(default=5, ge=1)
     subscription_interval_ms: int = Field(default=500, ge=50)
+    monitor_queue_maxsize: int = Field(default=10000, ge=1)
     encoding: Literal["binary", "xml"] = Field(default="binary")
 
 class SecurityConfig(BaseModel):

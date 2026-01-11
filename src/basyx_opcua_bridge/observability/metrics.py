@@ -33,3 +33,6 @@ class MetricsCollector:
     def record_sync_event(self, direction: str, success: bool) -> None:
         status = "success" if success else "failure"
         self.sync_events.labels(direction=direction, status=status).inc()
+
+    def set_active_subscriptions(self, count: int) -> None:
+        self.active_subscriptions.set(count)

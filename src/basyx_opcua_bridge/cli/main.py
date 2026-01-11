@@ -14,21 +14,16 @@ def main(
     config: Path = typer.Option(..., "--config", "-c", help="Path to configuration file"),
 ) -> None:
     """Start the BaSyx OPC UA Bridge."""
-    asyncio.run(_run_bridge(config))
+    try:
+        asyncio.run(_run_bridge(config))
+    except KeyboardInterrupt:
+        pass
 
 async def _run_bridge(config_path: Path) -> None:
     try:
         cfg = BridgeConfig.from_yaml(config_path)
         bridge = Bridge(cfg)
-        
-        await bridge.start()
-        
-        # Keep running until interrupted
-        try:
-            await bridge.wait_until_stopped()
-        except KeyboardInterrupt:
-            await bridge.stop()
-            
+        await bridge.run()
     except Exception as e:
         logger.critical("bridge_crashed", error=str(e))
         raise

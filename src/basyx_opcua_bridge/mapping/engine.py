@@ -100,6 +100,9 @@ class MappingEngine:
     def get_mapping_for_node(self, node_id: str) -> Optional[ResolvedMapping]:
         return self._resolved.get(node_id)
 
+    def resolved_mappings(self) -> List[ResolvedMapping]:
+        return list(self._resolved.values())
+
     def transform_to_aas(self, node_id: str, opcua_value: Any, variant_type: int) -> Tuple[Any, str]:
         mapping = self.get_mapping_for_node(node_id)
         if not mapping:
