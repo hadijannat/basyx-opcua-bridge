@@ -1,0 +1,31 @@
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    ports:
+      - "1883:1883"
+
+  sm-repo:
+    image: ${SM_REPO_IMAGE:-eclipsebasyx/submodel-repository:2.0.0-SNAPSHOT}
+    ports:
+      - "8081:8081"
+    volumes:
+      - ./basyx/submodel-repo.properties:/application/application.properties:ro
+    depends_on:
+      - mosquitto
+
+  opcua-simulator:
+    build:
+      context: ./opcua-simulator
+    ports:
+      - "4840:4840"
+
+  bridge:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    volumes:
+      - ../config/bridge.e2e.yaml:/app/config/bridge.yaml:ro
+    depends_on:
+      - mosquitto
+      - sm-repo
+      - opcua-simulator

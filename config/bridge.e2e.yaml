@@ -1,0 +1,29 @@
+opcua:
+  endpoints:
+    - url: opc.tcp://opcua-simulator:4840
+      name: simulator
+      security_policy: None
+  connection_pool_size: 2
+
+mappings:
+  - opcua_node_id: "ns=2;s=Temperature"
+    aas_id_short: Temperature
+    submodel_id: "urn:example:submodel:1"
+    direction: aas_to_opcua
+    value_type: xs:double
+
+aas:
+  type: basyx
+  url: http://sm-repo:8081/submodels
+  enable_events: true
+  auto_create_submodels: false
+  auto_create_elements: false
+  events:
+    enabled: true
+    mqtt_url: mqtt://mosquitto:1883
+    mqtt_topic: sm-repository/+/submodels/+/submodelElements/#
+    payload_id_short_key: idShort
+    payload_submodel_id_key: submodelId
+    payload_value_key: value
+    dedup_ttl_seconds: 2.0
+    dedup_max_entries: 2048

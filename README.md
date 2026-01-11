@@ -263,6 +263,11 @@ pytest tests/ --cov=src --cov-report=html
 
 # Integration tests only
 pytest tests/integration/
+
+# MQTT event e2e (Docker Compose)
+docker compose -f docker/compose.e2e.yml up -d --build
+RUN_MQTT_E2E=1 pytest tests/integration/test_mqtt_event_e2e.py
+docker compose -f docker/compose.e2e.yml down -v
 ```
 
 ### Type Checking & Linting
