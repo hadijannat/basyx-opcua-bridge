@@ -5,7 +5,9 @@ import urllib.request
 from pathlib import Path
 
 import yaml
-from jsonschema import Draft202012Validator, RefResolver
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+from referencing.jsonschema import DRAFT202012
 from basyx.aas import model as aas_model
 from basyx.aas.adapter.json import json_serialization
 
@@ -72,8 +74,13 @@ def validate_paths(paths_spec: dict) -> None:
 
 
 def validate_schemas(schema_spec: dict) -> None:
-    resolver = RefResolver.from_schema(schema_spec)
-    validator = Draft202012Validator({"$ref": "#/components/schemas/Submodel"}, resolver=resolver)
+    schema_id = schema_spec.get("$id", "urn:aas-openapi")
+    resource = Resource.from_contents(schema_spec, default_specification=DRAFT202012)
+    registry = Registry().with_resource(schema_id, resource)
+    validator = Draft202012Validator(
+        {"$ref": f"{schema_id}#/components/schemas/Submodel"},
+        registry=registry,
+    )
 
     prop = aas_model.Property(
         id_short="Temperature",
