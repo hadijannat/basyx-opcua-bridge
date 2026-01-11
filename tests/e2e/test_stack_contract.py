@@ -88,15 +88,33 @@ async def _wait_for_aas_value(
     raise AssertionError(f"Timed out waiting for AAS value {expected}")
 
 
-async def _wait_for_metrics(timeout: float) -> None:
+async def _wait_for_metrics(timeout: float) -> str:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         status, payload = await asyncio.to_thread(_request_json, METRICS_URL)
         if status == 200 and isinstance(payload, str):
             if "bridge_sync_events_total" in payload and "bridge_active_subscriptions" in payload:
-                return
+                return payload
         await asyncio.sleep(0.5)
     raise AssertionError("Timed out waiting for metrics to be available")
+
+
+async def _wait_for_active_subscription(timeout: float) -> None:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        payload = await _wait_for_metrics(timeout=5.0)
+        for line in payload.splitlines():
+            if line.startswith("bridge_active_subscriptions"):
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        value = float(parts[-1])
+                    except ValueError:
+                        value = 0.0
+                    if value >= 1.0:
+                        return
+        await asyncio.sleep(0.5)
+    raise AssertionError("Timed out waiting for active OPC UA subscriptions")
 
 
 @pytest.mark.asyncio
@@ -106,17 +124,27 @@ async def test_stack_contract_opcua_to_aas_and_metrics():
 
     base_url = await _resolve_sm_repo_base(SM_REPO_BASE_URL, timeout=E2E_TIMEOUT)
 
-    target_value = 42.0
-    async with Client(OPCUA_URL) as client:
-        node = client.get_node("ns=2;s=Temperature")
-        await node.write_value(target_value)
+    await _wait_for_active_subscription(timeout=E2E_TIMEOUT)
 
-    await _wait_for_aas_value(
-        base_url,
-        submodel_id="urn:example:submodel:1",
-        id_short="Temperature",
-        expected=target_value,
-        timeout=E2E_TIMEOUT,
-    )
+    target_value = 42.0
+    deadline = time.monotonic() + E2E_TIMEOUT
+    while time.monotonic() < deadline:
+        async with Client(OPCUA_URL) as client:
+            node = client.get_node("ns=2;s=Temperature")
+            await node.write_value(target_value)
+
+        try:
+            await _wait_for_aas_value(
+                base_url,
+                submodel_id="urn:example:submodel:1",
+                id_short="Temperature",
+                expected=target_value,
+                timeout=10.0,
+            )
+            break
+        except AssertionError:
+            await asyncio.sleep(1.0)
+    else:
+        raise AssertionError(f"Timed out waiting for AAS value {target_value}")
 
     await _wait_for_metrics(timeout=E2E_TIMEOUT)
