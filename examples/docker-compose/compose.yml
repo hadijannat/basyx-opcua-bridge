@@ -24,6 +24,15 @@ services:
       mosquitto:
         condition: service_healthy
 
+  sm-repo-wait:
+    image: alpine:3.20
+    depends_on:
+      sm-repo:
+        condition: service_started
+    command: >
+      sh -c "apk add --no-cache curl >/dev/null
+      && until curl -sf http://sm-repo:8080/submodels >/dev/null; do sleep 1; done"
+
   opcua-simulator:
     build:
       context: ../../docker/opcua-simulator
@@ -40,9 +49,12 @@ services:
     ports:
       - "${BRIDGE_METRICS_PORT:-9090}:9090"
     depends_on:
-      - mosquitto
-      - sm-repo
-      - opcua-simulator
+      mosquitto:
+        condition: service_healthy
+      opcua-simulator:
+        condition: service_started
+      sm-repo-wait:
+        condition: service_completed_successfully
 
   prometheus:
     image: prom/prometheus:v2.54.1
