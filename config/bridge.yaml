@@ -1,0 +1,16 @@
+opcua:
+  endpoints:
+    - url: opc.tcp://localhost:4840
+      name: simulator
+      security_policy: None
+  connection_pool_size: 5
+
+mappings:
+  - opcua_node_id: "ns=2;s=Temperature"
+    aas_id_short: Temperature
+    submodel_id: "urn:example:submodel:1"
+    direction: bidirectional
+    value_type: xs:double
+    range_constraint:
+        min_value: 0
+        max_value: 100
