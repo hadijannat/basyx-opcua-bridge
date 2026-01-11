@@ -14,7 +14,7 @@ mappings:
 
 aas:
   type: basyx
-  url: http://sm-repo:8081/submodels
+  url: http://sm-repo:8080/submodels
   enable_events: true
   auto_create_submodels: false
   auto_create_elements: false
