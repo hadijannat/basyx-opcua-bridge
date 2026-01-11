@@ -72,3 +72,4 @@ certs/
 *.pem
 *.key
 local_config.yaml
+AGENTS.md
