@@ -14,6 +14,7 @@ import structlog
 from basyx.aas import model as aas_model
 from basyx.aas.adapter.json import json_serialization
 
+from basyx_opcua_bridge.aas.events import EventHints, RecentWriteCache, parse_basyx_topic
 from basyx_opcua_bridge.config.models import AasProviderConfig, AasEventsConfig, SyncDirection
 from basyx_opcua_bridge.mapping.engine import MappingEngine, ResolvedMapping
 from basyx_opcua_bridge.sync.control import WriteRequest
@@ -151,6 +152,14 @@ class HttpAasProvider:
         self._auto_create_submodels = config.auto_create_submodels
         self._auto_create_elements = config.auto_create_elements
         self._events = config.events
+        self._recent_writes = (
+            RecentWriteCache(
+                config.events.dedup_ttl_seconds,
+                config.events.dedup_max_entries,
+            )
+            if config.events.dedup_enabled
+            else None
+        )
         self._submodels: Dict[str, aas_model.Submodel] = {}
         self._mappings_by_key: Dict[MappingKey, ResolvedMapping] = {}
         self._mappings_by_id_short: Dict[str, List[ResolvedMapping]] = {}
@@ -208,9 +217,14 @@ class HttpAasProvider:
         if not mapping:
             return
         ok = await self._write_value(mapping, value)
+        if ok:
+            self._remember_write(mapping, value)
+            return
         if not ok and self._auto_create_elements:
             await self._ensure_element(mapping)
-            await self._write_value(mapping, value)
+            ok = await self._write_value(mapping, value)
+            if ok:
+                self._remember_write(mapping, value)
 
     async def write_requests(self, shutdown_event: asyncio.Event) -> AsyncIterator[WriteRequest]:
         if not self._config.enable_events:
@@ -224,6 +238,8 @@ class HttpAasProvider:
             for mapping in list(self._control_mappings):
                 value = await self._read_value(mapping)
                 if value is None:
+                    continue
+                if self._is_recent_write(mapping, value):
                     continue
                 cache_key = mapping.rule.opcua_node_id
                 last_value = self._last_values.get(cache_key)
@@ -415,21 +431,65 @@ class HttpAasProvider:
                 async for message in messages:
                     if shutdown_event.is_set():
                         return
-                    request = self._parse_event_message(message.payload, events)
-                    if request:
-                        yield request
+                    requests = self._parse_event_message(message.payload, events, str(message.topic))
+                    if requests:
+                        for request in requests:
+                            yield request
 
-    def _parse_event_message(self, payload: bytes, events: AasEventsConfig) -> Optional[WriteRequest]:
+    def _parse_event_message(
+        self,
+        payload: bytes,
+        events: AasEventsConfig,
+        topic: Optional[str] = None,
+    ) -> Optional[List[WriteRequest]]:
         try:
             decoded = json.loads(payload.decode("utf-8"))
         except Exception:
             logger.warning("mqtt_payload_invalid", payload=payload[:256])
             return None
 
-        if not isinstance(decoded, dict):
+        topic_hints = parse_basyx_topic(topic) if topic else EventHints()
+
+        if isinstance(decoded, dict):
+            patches = decoded.get("patches") or decoded.get("operations") or decoded.get("patch")
+            if isinstance(patches, list):
+                requests: List[WriteRequest] = []
+                for patch in patches:
+                    if not isinstance(patch, dict):
+                        continue
+                    request = self._build_request(patch, events, topic_hints)
+                    if request:
+                        requests.append(request)
+                return requests or None
+
+            request = self._build_request(decoded, events, topic_hints)
+            if request:
+                return [request]
             return None
 
-        id_short, submodel_id, value = self._extract_event_fields(decoded, events)
+        if topic_hints.id_short:
+            mapping = self._resolve_mapping(topic_hints.id_short, topic_hints.submodel_id)
+            if not mapping:
+                logger.warning(
+                    "mqtt_payload_mapping_missing",
+                    id_short=topic_hints.id_short,
+                    submodel_id=topic_hints.submodel_id,
+                )
+                return None
+            if self._is_recent_write(mapping, decoded):
+                logger.debug("mqtt_dedup_skipped", id_short=topic_hints.id_short)
+                return None
+            return [WriteRequest(node_id=mapping.rule.opcua_node_id, value=decoded)]
+
+        return None
+
+    def _build_request(
+        self,
+        decoded: dict[str, Any],
+        events: AasEventsConfig,
+        topic_hints: EventHints,
+    ) -> Optional[WriteRequest]:
+        id_short, submodel_id, value = self._extract_event_fields(decoded, events, topic_hints)
 
         if not id_short:
             logger.warning("mqtt_payload_missing_id_short")
@@ -439,11 +499,17 @@ class HttpAasProvider:
         if not mapping:
             logger.warning("mqtt_payload_mapping_missing", id_short=id_short, submodel_id=submodel_id)
             return None
+        if self._is_recent_write(mapping, value):
+            logger.debug("mqtt_dedup_skipped", id_short=id_short, submodel_id=submodel_id)
+            return None
 
         return WriteRequest(node_id=mapping.rule.opcua_node_id, value=value)
 
     def _extract_event_fields(
-        self, decoded: dict[str, Any], events: AasEventsConfig
+        self,
+        decoded: dict[str, Any],
+        events: AasEventsConfig,
+        topic_hints: EventHints,
     ) -> tuple[Optional[str], Optional[str], Any]:
         candidates = [
             decoded,
@@ -461,12 +527,43 @@ class HttpAasProvider:
             if not id_short and "idShortPath" in candidate:
                 id_short_path = str(candidate.get("idShortPath"))
                 id_short = id_short_path.split("/")[-1].split(".")[-1]
+            if not id_short and "path" in candidate:
+                id_short = self._id_short_from_path(str(candidate.get("path")))
             submodel_id = candidate.get(events.payload_submodel_id_key) or candidate.get("submodelId") or candidate.get("submodelIdentifier")
             value = candidate.get(events.payload_value_key, candidate.get("value"))
+            if not id_short and topic_hints.id_short:
+                id_short = topic_hints.id_short
+            if not submodel_id and topic_hints.submodel_id:
+                submodel_id = topic_hints.submodel_id
             if id_short:
                 return str(id_short), str(submodel_id) if submodel_id else None, value
 
         return None, None, None
+
+    def _id_short_from_path(self, path: str) -> Optional[str]:
+        if not path:
+            return None
+        normalized = path.strip("/")
+        if "submodelElements" in normalized:
+            tail = normalized.split("submodelElements", 1)[1].strip("/")
+            for suffix in ("/value", "/$value"):
+                if tail.endswith(suffix):
+                    tail = tail[: -len(suffix)]
+            if tail:
+                return tail.split("/")[-1]
+        return None
+
+    def _dedup_key(self, mapping: ResolvedMapping) -> str:
+        return f"{mapping.rule.submodel_id}:{mapping.rule.aas_id_short}"
+
+    def _remember_write(self, mapping: ResolvedMapping, value: Any) -> None:
+        if self._recent_writes:
+            self._recent_writes.remember(self._dedup_key(mapping), value)
+
+    def _is_recent_write(self, mapping: ResolvedMapping, value: Any) -> bool:
+        if not self._recent_writes:
+            return False
+        return self._recent_writes.matches(self._dedup_key(mapping), value)
 
 
 def build_aas_provider(config: AasProviderConfig, mapping_engine: MappingEngine) -> AasProvider:

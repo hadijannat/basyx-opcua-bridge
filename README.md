@@ -136,14 +136,21 @@ aas:
   events:
     enabled: true
     mqtt_url: mqtt://localhost:1883
-    mqtt_topic: basyx/aas/changes/#
+    mqtt_topic: sm-repository/+/submodels/+/submodelElements/#
     payload_id_short_key: idShort
     payload_submodel_id_key: submodelId
     payload_value_key: value
+    dedup_ttl_seconds: 2.0
+    dedup_max_entries: 2048
 ```
 
 The bridge accepts JSON payloads with `idShort` (or `idShortPath` for nested elements), optional
 `submodelId`, and `value`. Payloads may also be wrapped in `data`, `payload`, or `event`.
+If the payload is value-only, the bridge derives `submodelId` and `idShortPath` from BaSyx MQTT
+topics (base64url submodel IDs).
+
+`dedup_ttl_seconds` enables loop prevention by ignoring MQTT events that match recent writes from
+the bridge (value hash + TTL).
 
 Example MQTT payload:
 

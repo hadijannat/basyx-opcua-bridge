@@ -124,6 +124,9 @@ class AasEventsConfig(BaseModel):
     payload_id_short_key: str = "idShort"
     payload_submodel_id_key: str = "submodelId"
     payload_value_key: str = "value"
+    dedup_enabled: bool = True
+    dedup_ttl_seconds: float = Field(default=2.0, ge=0)
+    dedup_max_entries: int = Field(default=2048, ge=1)
 
 
 class AasProviderConfig(BaseModel):
