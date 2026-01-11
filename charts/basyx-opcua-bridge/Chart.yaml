@@ -1,0 +1,15 @@
+apiVersion: v2
+name: basyx-opcua-bridge
+description: OPC UA to AAS bidirectional bridge for Eclipse BaSyx
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - opcua
+  - aas
+  - basyx
+  - industry4.0
+home: https://github.com/hadijannat/basyx-opcua-bridge
+maintainers:
+  - name: hadijannat
+    url: https://github.com/hadijannat

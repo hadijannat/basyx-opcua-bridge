@@ -352,7 +352,24 @@ docker build -t basyx-opcua-bridge -f docker/Dockerfile .
 docker run -v $(pwd)/config:/app/config basyx-opcua-bridge
 ```
 
-### Kubernetes
+### Helm
+
+Install the chart with a bundled `bridge.yaml`:
+
+```bash
+helm install basyx-opcua-bridge charts/basyx-opcua-bridge \
+  --set image.tag=0.1.0
+```
+
+To supply your own config, create a ConfigMap and reference it:
+
+```bash
+kubectl create configmap basyx-opcua-bridge-config --from-file=bridge.yaml=config/bridge.yaml
+helm install basyx-opcua-bridge charts/basyx-opcua-bridge \
+  --set bridgeConfig.existingConfigMap=basyx-opcua-bridge-config
+```
+
+### Kubernetes (Kustomize)
 
 Kustomize manifests are available in `examples/kubernetes/`:
 

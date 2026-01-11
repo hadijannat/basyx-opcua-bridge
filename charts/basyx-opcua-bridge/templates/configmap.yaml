@@ -1,0 +1,11 @@
+{{- if and .Values.bridgeConfig.enabled (eq .Values.bridgeConfig.existingConfigMap "") -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "basyx-opcua-bridge.fullname" . }}-config
+  labels:
+    {{- include "basyx-opcua-bridge.labels" . | nindent 4 }}
+data:
+  bridge.yaml: |-
+{{ .Values.bridgeConfig.data | indent 4 }}
+{{- end -}}
