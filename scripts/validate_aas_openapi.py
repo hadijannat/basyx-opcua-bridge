@@ -32,22 +32,40 @@ def load_yaml(path: Path) -> dict:
         return yaml.safe_load(handle)
 
 
+def _methods_for_path(paths: dict, path: str) -> set[str]:
+    return {method.lower() for method in paths.get(path, {})}
+
+
 def validate_paths(paths_spec: dict) -> None:
     paths = paths_spec.get("paths", {})
-    required = {
-        "/aas/submodels": {"post"},
+    missing: list[str] = []
+
+    submodel_collection_candidates = ["/aas/submodels", "/submodels"]
+    has_collection = False
+    for candidate in submodel_collection_candidates:
+        if {"post"}.issubset(_methods_for_path(paths, candidate)):
+            has_collection = True
+            break
+    if not has_collection:
+        missing.append("/aas/submodels or /submodels (POST)")
+
+    for path, methods in {
         "/aas/submodels/{submodelIdentifier}": {"get"},
         "/aas/submodels/{submodelIdentifier}/submodel-elements": {"post"},
-        "/aas/submodels/{submodelIdentifier}/submodel-elements/{idShortPath}/$value": {"get", "patch", "put"},
-    }
-    missing = []
-    for path, methods in required.items():
-        if path not in paths:
-            missing.append(path)
-            continue
-        available = {m.lower() for m in paths[path]}
+    }.items():
+        available = _methods_for_path(paths, path)
         if not methods.issubset(available):
             missing.append(f"{path} missing {sorted(methods - available)}")
+
+    value_path = "/aas/submodels/{submodelIdentifier}/submodel-elements/{idShortPath}/$value"
+    available = _methods_for_path(paths, value_path)
+    if not available:
+        missing.append(value_path)
+    else:
+        if "get" not in available:
+            missing.append(f"{value_path} missing ['get']")
+        if not {"patch", "put"}.intersection(available):
+            missing.append(f"{value_path} missing ['patch' or 'put']")
 
     if missing:
         raise SystemExit(f"OpenAPI paths missing: {missing}")

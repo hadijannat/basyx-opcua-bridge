@@ -56,7 +56,7 @@ Now imagine you need this data in your **Digital Twin** – a virtual copy of yo
 ### 1. Clone & Setup
 
 ```bash
-git clone https://github.com/eclipse-basyx/basyx-opcua-bridge.git
+git clone https://github.com/hadijannat/basyx-opcua-bridge.git
 cd basyx-opcua-bridge
 ./scripts/setup_dev.sh
 ```
