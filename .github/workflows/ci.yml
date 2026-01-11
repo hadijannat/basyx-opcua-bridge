@@ -52,6 +52,7 @@ jobs:
       RUN_MQTT_E2E: "1"
       E2E_SM_REPO_URL: "http://localhost:8081"
       E2E_OPCUA_URL: "opc.tcp://localhost:4840"
+      E2E_TIMEOUT: "60"
       SM_REPO_IMAGE: "eclipsebasyx/submodel-repository:2.0.0-SNAPSHOT"
     steps:
       - uses: actions/checkout@v4

@@ -36,6 +36,8 @@ def _request_json(method: str, url: str, payload: object | None = None) -> int:
             return response.status
     except urllib.error.HTTPError as exc:
         return exc.code
+    except Exception:
+        return 0
 
 
 async def _wait_for_http(url: str, timeout: float) -> None:
