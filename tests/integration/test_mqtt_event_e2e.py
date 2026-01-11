@@ -61,14 +61,28 @@ async def _write_value_any(base_url: str, value: float) -> int:
     return status
 
 
-async def _wait_for_http(url: str, timeout: float) -> None:
+async def _resolve_sm_repo_base(base_url: str, timeout: float) -> str:
     deadline = time.monotonic() + timeout
+    last_status = None
+    base = base_url.rstrip("/")
+    candidates = [
+        base,
+        f"{base}/submodel-repository",
+        f"{base}/api/v3.0",
+        f"{base}/aas",
+    ]
+    probe_paths = ("/submodels", "/v3/api-docs")
     while time.monotonic() < deadline:
-        status = await asyncio.to_thread(_request_json, "GET", url)
-        if status == 200:
-            return
+        for candidate in candidates:
+            for path in probe_paths:
+                status = await asyncio.to_thread(_request_json, "GET", f"{candidate}{path}")
+                last_status = status
+                if status == 200:
+                    return candidate
         await asyncio.sleep(0.5)
-    raise AssertionError(f"Timed out waiting for HTTP 200 from {url}")
+    raise AssertionError(
+        f"Timed out waiting for HTTP 200 from {base} (last status={last_status})"
+    )
 
 
 async def _wait_for_opcua_value(node_id: str, expected: float, timeout: float) -> None:
@@ -88,7 +102,7 @@ async def test_mqtt_event_triggers_opcua_write():
     if not RUN_E2E:
         pytest.skip("RUN_MQTT_E2E not set")
 
-    await _wait_for_http(f"{SM_REPO_BASE_URL}/submodels", timeout=E2E_TIMEOUT)
+    base_url = await _resolve_sm_repo_base(SM_REPO_BASE_URL, timeout=E2E_TIMEOUT)
 
     submodel_id = "urn:example:submodel:1"
     submodel = aas_model.Submodel(id_=submodel_id, id_short="Sensors")
@@ -97,7 +111,7 @@ async def test_mqtt_event_triggers_opcua_write():
     status = await asyncio.to_thread(
         _request_json,
         "POST",
-        f"{SM_REPO_BASE_URL}/submodels",
+        f"{base_url}/submodels",
         submodel_payload,
     )
     assert status in (200, 201, 204, 409)
@@ -112,15 +126,15 @@ async def test_mqtt_event_triggers_opcua_write():
     status = await asyncio.to_thread(
         _request_json,
         "POST",
-        f"{SM_REPO_BASE_URL}/submodels/{encoded}/submodel-elements",
+        f"{base_url}/submodels/{encoded}/submodel-elements",
         prop_payload,
     )
     assert status in (200, 201, 204, 409)
 
     await asyncio.sleep(2.0)
     target_value = 55.0
-    base_url = f"{SM_REPO_BASE_URL}/submodels/{encoded}/submodel-elements/Temperature"
-    status = await _write_value_any(base_url, target_value)
+    element_base_url = f"{base_url}/submodels/{encoded}/submodel-elements/Temperature"
+    status = await _write_value_any(element_base_url, target_value)
     if status not in (200, 204):
         updated = aas_model.Property(
             id_short="Temperature",
@@ -128,7 +142,7 @@ async def test_mqtt_event_triggers_opcua_write():
             value=target_value,
         )
         updated_payload = json.loads(json.dumps(updated, cls=json_serialization.AASToJsonEncoder))
-        status = await asyncio.to_thread(_request_json, "PUT", base_url, updated_payload)
+            status = await asyncio.to_thread(_request_json, "PUT", element_base_url, updated_payload)
     assert status in (200, 204)
 
     await _wait_for_opcua_value("ns=2;s=Temperature", target_value, timeout=E2E_TIMEOUT)

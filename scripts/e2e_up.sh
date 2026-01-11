@@ -20,17 +20,20 @@ deadline = time.time() + timeout
 
 base_url = os.getenv("E2E_SM_REPO_URL", "http://localhost:8081").rstrip("/")
 submodels_url = f"{base_url}/submodels"
+openapi_url = f"{base_url}/v3/api-docs"
 
-def wait_for_http(url: str) -> None:
+def wait_for_http(urls) -> None:
     while time.time() < deadline:
-        try:
-            with urllib.request.urlopen(url, timeout=2) as resp:
-                if resp.status == 200:
-                    print(f"Ready: {url}")
-                    return
-        except urllib.error.URLError:
-            time.sleep(1)
-    raise SystemExit(f"Timed out waiting for {url}")
+        for url in urls:
+            try:
+                with urllib.request.urlopen(url, timeout=2) as resp:
+                    if resp.status == 200:
+                        print(f"Ready: {url}")
+                        return
+            except urllib.error.URLError:
+                continue
+        time.sleep(1)
+    raise SystemExit(f"Timed out waiting for {', '.join(urls)}")
 
 def wait_for_tcp(host: str, port: int) -> None:
     while time.time() < deadline:
@@ -42,7 +45,7 @@ def wait_for_tcp(host: str, port: int) -> None:
             time.sleep(1)
     raise SystemExit(f"Timed out waiting for tcp://{host}:{port}")
 
-wait_for_http(submodels_url)
+wait_for_http((submodels_url, openapi_url))
 
 opcua_url = os.getenv("E2E_OPCUA_URL", "opc.tcp://localhost:4840")
 parsed = urllib.parse.urlparse(opcua_url)

@@ -66,6 +66,9 @@ jobs:
         run: docker compose -f docker/compose.e2e.yml up -d --build
       - name: Run MQTT event E2E test
         run: pytest tests/integration/test_mqtt_event_e2e.py
+      - name: Dump e2e logs on failure
+        if: failure()
+        run: docker compose -f docker/compose.e2e.yml logs sm-repo mosquitto opcua-simulator bridge
       - name: Tear down e2e stack
         if: always()
         run: docker compose -f docker/compose.e2e.yml down -v
