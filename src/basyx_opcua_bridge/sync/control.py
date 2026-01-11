@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any, TYPE_CHECKING
 
 import structlog
+from asyncua import ua
 
 if TYPE_CHECKING:
     from basyx_opcua_bridge.core.connection import OpcUaConnectionPool
@@ -33,13 +34,26 @@ class ControlManager:
     async def write(self, request: WriteRequest) -> bool:
         async with self._sem:
             try:
-                opc_val, _ = self._engine.transform_to_opcua(request.node_id, request.value)
-                
-                # Write logic would go here
-                # conn.write(...)
-                
+                opc_val, variant_type = self._engine.transform_to_opcua(request.node_id, request.value)
+                mapping = self._engine.get_mapping_for_node(request.node_id)
+                if not mapping:
+                    raise ValueError(f"No mapping for node {request.node_id}")
+
+                endpoint_url = self._pool.resolve_endpoint_url(mapping.rule.endpoint)
+                previous_value = None
+                async with self._pool.get_connection(endpoint_url) as conn:
+                    node = conn.client.get_node(request.node_id)
+                    if self._audit:
+                        try:
+                            previous_value = await node.read_value()
+                        except Exception:
+                            previous_value = None
+
+                    variant = ua.Variant(opc_val, ua.VariantType(variant_type))
+                    await node.write_value(variant)
+
                 if self._audit:
-                    await self._audit.log_write(request.node_id, request.user_id, None, request.value)
+                    await self._audit.log_write(request.node_id, request.user_id, previous_value, request.value)
                 
                 self._metrics.record_sync_event("aas_to_opcua", True)
                 return True

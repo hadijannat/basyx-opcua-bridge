@@ -55,6 +55,21 @@ class OpcUaConnectionPool:
         self._connections: Dict[str, PooledConnection] = {}
         self._lock = asyncio.Lock()
 
+    @property
+    def endpoints(self) -> List[EndpointConfig]:
+        return list(self._endpoints)
+
+    def resolve_endpoint_url(self, endpoint_ref: str | None) -> str:
+        if endpoint_ref is None:
+            if not self._endpoints:
+                raise ConnectionError("No OPC UA endpoints configured")
+            return self._endpoints[0].url
+
+        for endpoint in self._endpoints:
+            if endpoint.url == endpoint_ref or endpoint.name == endpoint_ref:
+                return endpoint.url
+        raise ConnectionError(f"Unknown endpoint reference: {endpoint_ref}")
+
     async def connect(self) -> None:
         tasks = [self._connect_endpoint(ep) for ep in self._endpoints]
         results = await asyncio.gather(*tasks, return_exceptions=True)

@@ -100,6 +100,7 @@ class MappingRule(BaseModel):
     opcua_node_id: str = Field(..., pattern=r"^(ns=\d+;[sigb]=.+|i=\d+)$")
     aas_id_short: str
     submodel_id: str
+    endpoint: Optional[str] = Field(default=None, description="Endpoint name or URL to target")
     semantic_id: Optional[str] = None
     direction: SyncDirection = SyncDirection.BIDIRECTIONAL
     value_type: str = "xs:double"

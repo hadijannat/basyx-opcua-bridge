@@ -53,7 +53,14 @@ async def opcua_simulator() -> AsyncGenerator[Server, None]:
 def sample_config() -> BridgeConfig:
     return BridgeConfig(
         opcua=OpcUaConfig(
-            endpoints=[EndpointConfig(url="opc.tcp://localhost:4840", name="test")]
+            endpoints=[
+                EndpointConfig(
+                    url="opc.tcp://localhost:4840",
+                    name="test",
+                    security_policy="None",
+                    security_mode="None",
+                )
+            ]
         ),
         mappings=[
             MappingRule(

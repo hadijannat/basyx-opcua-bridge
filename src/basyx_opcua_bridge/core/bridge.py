@@ -8,6 +8,7 @@ from basyx_opcua_bridge.config.models import BridgeConfig
 from basyx_opcua_bridge.core.connection import OpcUaConnectionPool
 from basyx_opcua_bridge.mapping.engine import MappingEngine
 from basyx_opcua_bridge.sync.manager import SyncManager
+from basyx_opcua_bridge.aas.providers import AasProvider, build_aas_provider
 from basyx_opcua_bridge.security.audit import AuditLogger
 from basyx_opcua_bridge.security.x509 import CertificateManager
 from basyx_opcua_bridge.observability.metrics import MetricsCollector
@@ -22,6 +23,7 @@ class Bridge:
         self._sync_manager: Optional[SyncManager] = None
         self._cert_manager: Optional[CertificateManager] = None
         self._audit_logger: Optional[AuditLogger] = None
+        self._aas_provider: Optional[AasProvider] = None
         self._metrics = MetricsCollector(port=config.observability.metrics_port)
         self._shutdown_event = asyncio.Event()
         self._is_running = False
@@ -68,10 +70,14 @@ class Bridge:
 
         self._mapping_engine = MappingEngine(self._config.mappings, self._config.semantic)
 
+        self._aas_provider = build_aas_provider(self._config.aas, self._mapping_engine)
+        await self._aas_provider.start()
+        await self._aas_provider.register_mappings(self._mapping_engine.resolved_mappings())
+
         self._sync_manager = SyncManager(
             connection_pool=self._connection_pool,
             mapping_engine=self._mapping_engine,
-            aas_provider=self._config.aas,
+            aas_provider=self._aas_provider,
             metrics=self._metrics,
             subscription_interval_ms=self._config.opcua.subscription_interval_ms,
             monitor_queue_maxsize=self._config.opcua.monitor_queue_maxsize,
@@ -97,6 +103,9 @@ class Bridge:
 
         if self._connection_pool:
             await self._connection_pool.disconnect()
+
+        if self._aas_provider:
+            await self._aas_provider.stop()
 
         self._is_running = False
         self._shutdown_event.clear()

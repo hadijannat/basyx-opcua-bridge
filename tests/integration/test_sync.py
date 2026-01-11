@@ -4,9 +4,10 @@ from basyx_opcua_bridge.core.connection import OpcUaConnectionPool
 from basyx_opcua_bridge.mapping.engine import MappingEngine
 from basyx_opcua_bridge.sync.monitor import MonitoringManager
 from basyx_opcua_bridge.observability.metrics import MetricsCollector
+from prometheus_client.registry import CollectorRegistry
 from basyx_opcua_bridge.config.models import EndpointConfig
 from basyx_opcua_bridge.security.x509 import CertificateManager
-from basyx.aas import model as aas_model
+from basyx_opcua_bridge.aas.providers import MemoryAasProvider
 
 @pytest.mark.asyncio
 async def test_opcua_to_aas_sync(opcua_simulator, sample_config):
@@ -24,13 +25,14 @@ async def test_opcua_to_aas_sync(opcua_simulator, sample_config):
     # 2. Setup Mapping Engine
     engine = MappingEngine(sample_config.mappings)
     
-    # 3. Create dummy Submodel
-    sm = aas_model.Submodel(id_="urn:test")
-    engine.register_submodel(sm, "ns=2")
+    # 3. Setup AAS Provider (memory)
+    provider = MemoryAasProvider(sample_config.aas, engine)
+    await provider.start()
+    await provider.register_mappings(engine.resolved_mappings())
     
     # 4. Setup Monitor
-    metrics = MetricsCollector(9091) # Use different port
-    monitor = MonitoringManager(pool, engine, metrics)
+    metrics = MetricsCollector(9091, registry=CollectorRegistry()) # Use different port
+    monitor = MonitoringManager(pool, engine, metrics, provider)
     
     # 5. Start Monitor
     mappings = list(engine._resolved.values())
@@ -50,20 +52,15 @@ async def test_opcua_to_aas_sync(opcua_simulator, sample_config):
     # Write a new value
     await var_node.write_value(42.0)
     
-    # 7. Wait for sync
-    # We poll the AAS element
+    # 7. Wait for sync and verify update
     try:
-        # Give it a second to process
-        for _ in range(10):
-            # Checking if the Mock/Placeholder Property logic in MonitoringManager actually updates
-            # In monitor.py check:
-            # mapping.element.value = val 
-            # Wait, in `monitor.py` I wrote `# mapping.element.value = val` (commented out in snippet?)
-            # I must check `monitor.py` content.
-            # If it is commented out, the test will fail.
+        for _ in range(20):
             await asyncio.sleep(0.1)
+            if provider.get_property_value("Temperature", "urn:test") == 42.0:
+                break
     finally:
         await monitor.stop()
         await pool.disconnect()
+        await provider.stop()
 
-    # Re-read monitor.py first to ensure logic is uncommented
+    assert provider.get_property_value("Temperature", "urn:test") == 42.0

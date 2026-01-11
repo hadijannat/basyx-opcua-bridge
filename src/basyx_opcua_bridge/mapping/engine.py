@@ -13,6 +13,23 @@ from basyx_opcua_bridge.mapping.type_converters import TypeConverter
 
 logger = structlog.get_logger(__name__)
 
+XSD_TO_AAS_DATATYPE: Dict[str, Any] = {
+    "xs:boolean": aas_model.datatypes.Boolean,
+    "xs:byte": aas_model.datatypes.Byte,
+    "xs:unsignedByte": aas_model.datatypes.UnsignedByte,
+    "xs:short": aas_model.datatypes.Short,
+    "xs:unsignedShort": aas_model.datatypes.UnsignedShort,
+    "xs:int": aas_model.datatypes.Int,
+    "xs:unsignedInt": aas_model.datatypes.UnsignedInt,
+    "xs:long": aas_model.datatypes.Long,
+    "xs:unsignedLong": aas_model.datatypes.UnsignedLong,
+    "xs:float": aas_model.datatypes.Float,
+    "xs:double": aas_model.datatypes.Double,
+    "xs:string": aas_model.datatypes.String,
+    "xs:dateTime": aas_model.datatypes.DateTime,
+    "xs:base64Binary": aas_model.datatypes.Base64Binary,
+}
+
 @dataclass
 class ResolvedMapping:
     rule: MappingRule
@@ -87,10 +104,11 @@ class MappingEngine:
                 return element
         
         semantic_id = aas_model.ExternalReference((aas_model.Key(aas_model.KeyTypes.GLOBAL_REFERENCE, rule.semantic_id),)) if rule.semantic_id else None
+        value_type = XSD_TO_AAS_DATATYPE.get(rule.value_type, aas_model.datatypes.String)
         
         new_property = aas_model.Property(
             id_short=rule.aas_id_short,
-            value_type=aas_model.datatypes.String, # Placeholder
+            value_type=value_type,
             value=None,
             semantic_id=semantic_id
         )
