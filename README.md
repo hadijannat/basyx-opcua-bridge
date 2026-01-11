@@ -79,12 +79,12 @@ mappings:
 
 aas:
   type: basyx                         # basyx | aasx-server | memory
-  url: http://localhost:8080/api/v3.0 # AAS REST base URL (Submodel API)
+  url: http://localhost:8080/api/v3.0 # AAS REST base URL (bridge appends /aas if missing)
   enable_events: true                 # enable AAS→OPC UA control polling
   encode_identifiers: true            # base64url encode submodel IDs for REST paths
 ```
 
-For BaSyx/AASX servers, set `url` to the AAS REST v3 base (e.g., `/api/v3.0`). Control is polling-based; tune
+For BaSyx/AASX servers, set `url` to the AAS REST v3 base (e.g., `/api/v3.0` or `/api/v3.0/aas`). Control is polling-based; tune
 `poll_interval_seconds` if needed. You can also enable `auto_create_submodels`/`auto_create_elements` in the same
 section to let the bridge create missing items on first sync.
 

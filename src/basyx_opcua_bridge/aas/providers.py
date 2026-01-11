@@ -144,7 +144,7 @@ class HttpAasProvider:
             raise ValueError("AAS provider URL is required for HTTP providers")
         self._config = config
         self._engine = mapping_engine
-        self._base_url = str(config.url).rstrip("/")
+        self._base_url = self._normalize_base_url(str(config.url))
         self._poll_interval = config.poll_interval_seconds
         self._timeout = config.request_timeout_seconds
         self._encode_ids = config.encode_identifiers
@@ -157,6 +157,18 @@ class HttpAasProvider:
         self._control_mappings: List[ResolvedMapping] = []
         self._last_values: Dict[str, Any] = {}
         self._started = False
+
+    def _normalize_base_url(self, url: str) -> str:
+        parsed = urllib.parse.urlparse(url)
+        path = parsed.path.rstrip("/")
+        if path.endswith("/submodels"):
+            base_path = path[: -len("/submodels")]
+            parsed = parsed._replace(path=base_path or "/")
+            return parsed.geturl().rstrip("/")
+        if path.endswith("/aas"):
+            return parsed.geturl().rstrip("/")
+        parsed = parsed._replace(path=f"{path}/aas" if path else "/aas")
+        return parsed.geturl().rstrip("/")
 
     @property
     def enable_events(self) -> bool:
@@ -417,9 +429,7 @@ class HttpAasProvider:
         if not isinstance(decoded, dict):
             return None
 
-        id_short = decoded.get(events.payload_id_short_key)
-        submodel_id = decoded.get(events.payload_submodel_id_key)
-        value = decoded.get(events.payload_value_key)
+        id_short, submodel_id, value = self._extract_event_fields(decoded, events)
 
         if not id_short:
             logger.warning("mqtt_payload_missing_id_short")
@@ -431,6 +441,32 @@ class HttpAasProvider:
             return None
 
         return WriteRequest(node_id=mapping.rule.opcua_node_id, value=value)
+
+    def _extract_event_fields(
+        self, decoded: dict[str, Any], events: AasEventsConfig
+    ) -> tuple[Optional[str], Optional[str], Any]:
+        candidates = [
+            decoded,
+            decoded.get("data"),
+            decoded.get("payload"),
+            decoded.get("event"),
+            decoded.get("submodelElement"),
+            decoded.get("submodel_element"),
+        ]
+
+        for candidate in candidates:
+            if not isinstance(candidate, dict):
+                continue
+            id_short = candidate.get(events.payload_id_short_key) or candidate.get("idShort") or candidate.get("id_short")
+            if not id_short and "idShortPath" in candidate:
+                id_short_path = str(candidate.get("idShortPath"))
+                id_short = id_short_path.split("/")[-1].split(".")[-1]
+            submodel_id = candidate.get(events.payload_submodel_id_key) or candidate.get("submodelId") or candidate.get("submodelIdentifier")
+            value = candidate.get(events.payload_value_key, candidate.get("value"))
+            if id_short:
+                return str(id_short), str(submodel_id) if submodel_id else None, value
+
+        return None, None, None
 
 
 def build_aas_provider(config: AasProviderConfig, mapping_engine: MappingEngine) -> AasProvider:

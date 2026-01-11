@@ -25,6 +25,8 @@ jobs:
         run: ruff check src/ tests/
       - name: Run MyPy
         run: mypy src/
+      - name: Validate AAS OpenAPI alignment
+        run: python scripts/validate_aas_openapi.py
 
   test:
     name: Test
