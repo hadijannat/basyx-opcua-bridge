@@ -62,7 +62,10 @@ async def _resolve_sm_repo_base(base_url: str, timeout: float) -> str:
 def _extract_value(payload: object) -> object | None:
     if isinstance(payload, dict):
         if "value" in payload:
-            return payload.get("value")
+            value = payload.get("value")
+            if isinstance(value, dict) and "value" in value:
+                return value.get("value")
+            return value
         if "data" in payload and isinstance(payload["data"], dict):
             return payload["data"].get("value")
     return None
@@ -84,6 +87,15 @@ async def _wait_for_aas_value(
             value = _extract_value(payload)
             if value == expected:
                 return
+            if isinstance(value, str):
+                try:
+                    if float(value) == expected:
+                        return
+                except ValueError:
+                    pass
+            if isinstance(value, (int, float)):
+                if float(value) == expected:
+                    return
         await asyncio.sleep(0.5)
     raise AssertionError(f"Timed out waiting for AAS value {expected}")
 
