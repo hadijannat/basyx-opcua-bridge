@@ -117,6 +117,11 @@ class AasProviderConfig(BaseModel):
     type: Literal["basyx", "aasx-server", "memory"] = "memory"
     url: Optional[HttpUrl] = None
     enable_events: bool = True
+    poll_interval_seconds: float = 1.0
+    request_timeout_seconds: float = 10.0
+    encode_identifiers: bool = True
+    auto_create_submodels: bool = True
+    auto_create_elements: bool = False
 
 class ObservabilityConfig(BaseModel):
     metrics_enabled: bool = True
