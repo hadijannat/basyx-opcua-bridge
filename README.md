@@ -98,6 +98,35 @@ python -m basyx_opcua_bridge.cli.main --config config/bridge.yaml
 
 ---
 
+## 🧭 Auto‑Discovery & Bootstrap (No Manual Mapping)
+
+Generate a ready‑to‑run config straight from an OPC UA endpoint:
+
+```bash
+python -m basyx_opcua_bridge.cli.main discover \
+  --opcua opc.tcp://localhost:4840 \
+  --out config/bridge.generated.yaml \
+  --report docs/discovery.report.json \
+  --emit-aas-env docs/aas.env.json \
+  --include "Temperature|Speed" \
+  --group namespace
+```
+
+Provision the AAS server (create submodels/elements) and optionally start the bridge:
+
+```bash
+python -m basyx_opcua_bridge.cli.main bootstrap \
+  --opcua opc.tcp://localhost:4840 \
+  --aas-type basyx \
+  --aas-url http://localhost:8080/api/v3.0 \
+  --provision \
+  --run
+```
+
+The discovery report includes node → AAS decisions, inferred types, and confidence scores.
+
+---
+
 ## 🎬 Visual Demo (Live Flow)
 
 ```mermaid

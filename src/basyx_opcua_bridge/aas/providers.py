@@ -34,6 +34,8 @@ class AasProvider(Protocol):
 
     def write_requests(self, shutdown_event: asyncio.Event) -> AsyncIterator[WriteRequest]: ...
 
+    async def provision(self, mappings: List[ResolvedMapping]) -> None: ...
+
 
 @dataclass(frozen=True)
 class MappingKey:
@@ -95,6 +97,9 @@ class MemoryAasProvider:
             except asyncio.TimeoutError:
                 continue
             yield request
+
+    async def provision(self, mappings: List[ResolvedMapping]) -> None:
+        await self.register_mappings(mappings)
 
     def get_property_value(self, aas_id_short: str, submodel_id: Optional[str] = None) -> Any:
         mapping = self._resolve_mapping(aas_id_short, submodel_id)
@@ -207,6 +212,12 @@ class HttpAasProvider:
                     self._last_values[cache_key] = value
                     yield WriteRequest(node_id=mapping.rule.opcua_node_id, value=value)
             await asyncio.sleep(self._poll_interval)
+
+    async def provision(self, mappings: List[ResolvedMapping]) -> None:
+        await self.register_mappings(mappings)
+        if self._auto_create_elements:
+            for mapping in mappings:
+                await self._ensure_element(mapping)
 
     async def _ensure_submodels(self) -> None:
         for submodel_id, submodel in self._submodels.items():
